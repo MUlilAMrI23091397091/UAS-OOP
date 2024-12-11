@@ -22,6 +22,9 @@ clock = pygame.time.Clock()
 # File untuk menyimpan skor tertinggi
 HIGH_SCORE_FILE = "high_score.txt"
 
+# Gambar mobil untuk dipilih
+CAR_IMAGES = ["car1.png", "car2.png", "car3.png"]  # Ganti dengan path gambar mobil
+
 
 # Fungsi untuk membaca skor tertinggi dari file
 def read_high_score():
@@ -38,27 +41,82 @@ def save_high_score(score):
         file.write(str(score))
 
 
+# Fungsi untuk menampilkan menu pemilihan mobil
+def select_car_menu():
+    selected_car = 0  # Default pilihan pertama
+    menu_running = True
+    font = pygame.font.Font(None, 48)
+
+    while menu_running:
+        screen.fill(BLACK)
+
+        # Tampilkan teks judul
+        title_text = font.render("Select Your Car", True, WHITE)
+        screen.blit(title_text, (WIDTH // 2 - title_text.get_width() // 2, 50))
+
+        # Tampilkan gambar mobil untuk dipilih
+        for i, car_image in enumerate(CAR_IMAGES):
+            car_img = pygame.image.load(car_image).convert_alpha()
+            car_img = pygame.transform.scale(car_img, (140, 140))  # Resize gambar mobil
+            x_pos = WIDTH // 4 * (i + 1) - car_img.get_width() // 2
+            y_pos = HEIGHT // 2 - car_img.get_height() // 2
+            screen.blit(car_img, (x_pos, y_pos))
+
+            # Highlight mobil yang dipilih
+            if i == selected_car:
+                pygame.draw.rect(
+                    screen,
+                    WHITE,
+                    (
+                        x_pos - 5,
+                        y_pos - 5,
+                        car_img.get_width() + 10,
+                        car_img.get_height() + 10,
+                    ),
+                    2,
+                )
+
+        # Event handling untuk navigasi menu
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                exit()
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_LEFT and selected_car > 0:
+                    selected_car -= 1
+                elif event.key == pygame.K_RIGHT and selected_car < len(CAR_IMAGES) - 1:
+                    selected_car += 1
+                elif event.key == pygame.K_RETURN:
+                    menu_running = False
+
+        # Update layar
+        pygame.display.flip()
+        clock.tick(FPS)
+
+    return CAR_IMAGES[selected_car]
+
+
 # Class untuk mobil pemain
 class Car:
-    def __init__(self):
-        self.width = 50
-        self.height = 80
+    def __init__(self, car_image):
+        self.width = 70  # Lebar mobil lebih kecil
+        self.height = 70  # Tinggi mobil lebih kecil
         self.x = WIDTH // 2 - self.width // 2
         self.y = HEIGHT - self.height - 10
         self.speed = 5
-        self.image = pygame.image.load("car.png", "mobil").convert_alpha()  # Ganti dengan gambar mobil
+        self.image = pygame.image.load(car_image).convert_alpha()
+        self.image = pygame.transform.scale(
+            self.image, (self.width, self.height)
+        )  # Resize gambar mobil
 
     def draw(self):
         screen.blit(self.image, (self.x, self.y))
 
     def move(self, keys):
-        # Gerakan horizontal (kiri/kanan)
-        if keys[pygame.K_LEFT] and self.x > 0:
+        if keys[pygame.K_LEFT] and self.x > 133:
             self.x -= self.speed
-        if keys[pygame.K_RIGHT] and self.x < WIDTH - self.width:
+        if keys[pygame.K_RIGHT] and self.x < 667 - self.width:
             self.x += self.speed
-
-        # Gerakan vertikal (atas/bawah)
         if keys[pygame.K_UP] and self.y > 0:
             self.y -= self.speed
         if keys[pygame.K_DOWN] and self.y < HEIGHT - self.height:
@@ -70,109 +128,86 @@ class Obstacle:
     def __init__(self, speed):
         self.width = 30
         self.height = 40
+        # Menentukan area jalan di mana obstacle dapat muncul
+        road_left_bound = 133  # Batas kiri jalan
+        road_right_bound = 667 - self.width  # Batas kanan jalan
         self.x = random.randint(
-            133, 667 - self.width
-        )  # Membatasi posisi x di dalam area lebar 534px
-        self.y = -self.height  # Memulai rintangan di atas layar
-        self.speed = speed  # Kecepatan rintangan
+            road_left_bound, road_right_bound
+        )  # Random dalam area jalan
+        self.y = -self.height
+        self.speed = speed
         self.color = RED
 
     def draw(self):
         pygame.draw.rect(screen, self.color, (self.x, self.y, self.width, self.height))
 
     def move(self):
-        self.y += self.speed  # Rintangan bergerak lebih cepat ke bawah
+        self.y += self.speed
 
 
 # Class utama untuk mengatur permainan
 class Game:
-    def __init__(self):
-        self.car = Car()
+    def __init__(self, car_image):
+        self.car = Car(car_image)
         self.obstacles = []
         self.score = 0
-        self.high_score = read_high_score()  # Membaca high score
+        self.high_score = read_high_score()
         self.running = True
-        self.background = pygame.image.load(
-            "road.png"
-        ).convert()  # Ganti dengan gambar jalanan
-        self.background = pygame.transform.scale(
-            self.background, (WIDTH, HEIGHT)
-        )  # Fit cover
+        self.background = pygame.image.load("road.png").convert()
+        self.background = pygame.transform.scale(self.background, (WIDTH, HEIGHT))
         self.bg_y1 = 0
-        self.bg_y2 = -HEIGHT  # Gambar kedua dimulai dari posisi negatif
-
-        # Kecepatan awal permainan
+        self.bg_y2 = -HEIGHT
         self.bg_speed = 5
-        self.obstacle_speed = 6  # Kecepatan rintangan
+        self.obstacle_speed = 6
         self.car_speed = 5
 
     def run(self):
         while self.running:
             clock.tick(FPS)
 
-            # Menambah skor secara bertahap
             self.score += 1
 
-            # Meningkatkan kecepatan permainan berdasarkan skor
-            if self.score % 100 == 0:  # Setiap 100 poin, percepat permainan
+            if self.score % 100 == 0:
                 self.bg_speed += 1
                 self.obstacle_speed += 1
                 self.car_speed += 1
 
-            # Menggerakkan latar belakang (scrolling)
-            self.bg_y1 += self.bg_speed  # Kecepatan scrolling
-            self.bg_y2 += self.bg_speed  # Kecepatan scrolling
+            self.bg_y1 += self.bg_speed
+            self.bg_y2 += self.bg_speed
 
-            # Jika gambar latar belakang pertama sudah melewati layar, pindah ke posisi negatif
             if self.bg_y1 >= HEIGHT:
                 self.bg_y1 = -HEIGHT
-            # Jika gambar latar belakang kedua sudah melewati layar, pindah ke posisi negatif
             if self.bg_y2 >= HEIGHT:
                 self.bg_y2 = -HEIGHT
 
-            # Menggambar latar belakang yang bergerak
-            screen.blit(self.background, (0, self.bg_y1))  # Gambar pertama
-            screen.blit(self.background, (0, self.bg_y2))  # Gambar kedua
+            screen.blit(self.background, (0, self.bg_y1))
+            screen.blit(self.background, (0, self.bg_y2))
 
-            # Event handling
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     self.running = False
 
-            # Menggerakkan mobil
             keys = pygame.key.get_pressed()
             self.car.move(keys)
 
-            # Menambah rintangan secara periodik
             if random.randint(1, 50) == 1:
                 self.obstacles.append(Obstacle(self.obstacle_speed))
 
-            # Menggerakkan dan menggambar rintangan
             for obstacle in self.obstacles:
                 obstacle.move()
                 obstacle.draw()
-
-                # Deteksi tabrakan
                 if self.check_collision(obstacle):
-                    print(f"Game Over! Skor akhir: {self.score}")
-                    # Update high score jika skor lebih tinggi
+                    print(f"Game Over! Final Score: {self.score}")
                     if self.score > self.high_score:
                         self.high_score = self.score
                         save_high_score(self.high_score)
                     self.running = False
 
-            # Menghapus rintangan yang sudah keluar dari layar
             self.obstacles = [
                 obstacle for obstacle in self.obstacles if obstacle.y < HEIGHT
             ]
-
-            # Menggambar mobil
             self.car.draw()
-
-            # Menampilkan skor
             self.display_score()
-
-            # Update layar
             pygame.display.flip()
 
     def check_collision(self, obstacle):
@@ -186,17 +221,14 @@ class Game:
     def display_score(self):
         font = pygame.font.Font(None, 36)
         score_text = font.render(f"Score: {self.score}", True, WHITE)
-        screen.blit(score_text, (10, 10))  # Menampilkan skor di sudut kiri atas
-
-        # Menampilkan high score
+        screen.blit(score_text, (10, 10))
         high_score_text = font.render(f"High Score: {self.high_score}", True, WHITE)
-        screen.blit(
-            high_score_text, (WIDTH - 200, 10)
-        )  # Menampilkan high score di sudut kanan atas
+        screen.blit(high_score_text, (WIDTH - 200, 10))
 
 
 # Menjalankan game
 if __name__ == "__main__":
-    game = Game()
+    selected_car_image = select_car_menu()
+    game = Game(selected_car_image)
     game.run()
-    pygame.quit() 
+    pygame.quit()
