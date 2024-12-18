@@ -144,6 +144,10 @@ class Obstacle:
     def move(self):
         self.y += self.speed
 
+class FastObstacle(Obstacle):
+    def __init__(self, speed):
+        super().__init__(speed)
+        self.speed = speed * 2  # Rintangan lebih cepat
 
 # Class utama untuk mengatur permainan
 class Game:
